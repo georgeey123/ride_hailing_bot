@@ -29,7 +29,8 @@ def get_db_connection():
             dbname=os.getenv("DB_NAME"),
             user=os.getenv("DB_USER"),
             password=os.getenv("DB_PASSWORD"),
-            host="localhost"
+            host=os.getenv("host"),
+            port=os.getenv("DB_PORT"),
         )
         return conn
     except psycopg2.Error as e:
