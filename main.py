@@ -13,7 +13,7 @@ from twilio.rest import Client
 # Load environment variables
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Secret key for session management
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')  # Secret key for session management
 
 # Twilio Client
 client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
@@ -230,17 +230,23 @@ def handle_registration(phone_number, incoming_msg):
     response = MessagingResponse()
     msg = response.message()
 
+    # Debugging Log
+    app.logger.info(f"Handling registration for {phone_number} - Step: {session.get('registration_step')}")
+
+    # Initialize the registration flow
     if 'registration_step' not in session:
         session['registration_step'] = 'ask_name'
         msg.body("Hello! To register, please provide your full name.")
         return str(response)
 
+    # Step: Ask for the name
     if session['registration_step'] == 'ask_name':
         session['full_name'] = incoming_msg
         session['registration_step'] = 'ask_role'
         msg.body("Thanks! Are you a driver or a passenger?")
         return str(response)
 
+    # Step: Ask for the role
     elif session['registration_step'] == 'ask_role':
         if incoming_msg not in ['driver', 'passenger']:
             msg.body("Please respond with 'driver' or 'passenger'.")
@@ -250,24 +256,33 @@ def handle_registration(phone_number, incoming_msg):
         msg.body("Great! Please provide an emergency contact number.")
         return str(response)
 
+    # Step: Ask for the emergency contact
     elif session['registration_step'] == 'ask_emergency_contact':
         session['emergency_contact'] = incoming_msg
         full_name = session.pop('full_name')
         role = session.pop('role')
         emergency_contact = session.pop('emergency_contact')
+        session.pop('registration_step', None)  # Clear the registration flow state
+
+        # Register the user
         user = register_user(phone_number, full_name, role, emergency_contact)
-        session.pop('registration_step', None)
         if user:
             msg.body(f"Thank you, {full_name}! You are now registered as a {role}.")
         else:
             msg.body("Sorry, there was an error with your registration. Please try again.")
         return str(response)
 
+
 # Twilio webhook route
 @app.route('/whatsapp', methods=['POST'])
 def webhook():
     incoming_msg = request.values.get('Body', '').strip().lower()
     phone_number = request.values.get('From', '').replace('whatsapp:', '')
+
+    # Logging incoming message and session state
+    app.logger.info(f"Incoming message: {incoming_msg} from {phone_number}")
+    app.logger.info(f"Session data: {session}")
+
     response = MessagingResponse()
     msg = response.message()
 
