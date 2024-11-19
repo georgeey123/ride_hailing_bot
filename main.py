@@ -62,6 +62,7 @@ def register_user(phone_number, full_name, role, emergency_contact):
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                print(f"Attempting to register user: {phone_number}, {full_name}, {role}, {emergency_contact}")
                 cur.execute(
                     """
                     INSERT INTO users (phone_number, full_name, role, emergency_contact)
@@ -72,10 +73,12 @@ def register_user(phone_number, full_name, role, emergency_contact):
                 )
                 user = cur.fetchone()
                 conn.commit()
+                print(f"User successfully registered: {user}")
                 return user
     except psycopg2.Error as e:
         print(f"Database error during registration: {e}")
         return None
+
 
 def create_ride(user_id, pickup_location, destination, driver_name, car_details, fare, duration):
     conn = get_db_connection()
@@ -236,6 +239,7 @@ def handle_registration(phone_number, incoming_msg):
 
     # Debugging Log
     app.logger.info(f"Handling registration for {phone_number} - Step: {session.get('registration_step')}")
+    app.logger.info(f"Incoming message: {incoming_msg}")
 
     # Initialize the registration flow
     if 'registration_step' not in session:
@@ -246,6 +250,7 @@ def handle_registration(phone_number, incoming_msg):
     # Step: Ask for the name
     if session['registration_step'] == 'ask_name':
         session['full_name'] = incoming_msg
+        app.logger.info(f"Captured full_name: {session['full_name']}")
         session['registration_step'] = 'ask_role'
         msg.body("Thanks! Are you a driver or a passenger?")
         return str(response)
@@ -256,6 +261,7 @@ def handle_registration(phone_number, incoming_msg):
             msg.body("Please respond with 'driver' or 'passenger'.")
             return str(response)
         session['role'] = incoming_msg.capitalize()
+        app.logger.info(f"Captured role: {session['role']}")
         session['registration_step'] = 'ask_emergency_contact'
         msg.body("Great! Please provide an emergency contact number.")
         return str(response)
@@ -271,13 +277,19 @@ def handle_registration(phone_number, incoming_msg):
         emergency_contact = session.pop('emergency_contact')
         session.pop('registration_step', None)  # Clear the registration flow state
 
+        # Debug log for collected data
+        app.logger.info(f"Registering user with data - phone_number: {phone_number}, full_name: {full_name}, role: {role}, emergency_contact: {emergency_contact}")
+
         # Register the user
         user = register_user(phone_number, full_name, role, emergency_contact)
         if user:
+            app.logger.info(f"User successfully registered: {user}")
             msg.body(f"Thank you, {full_name}! You are now registered as a {role}.")
         else:
+            app.logger.error("Error during user registration. Database returned None.")
             msg.body("Sorry, there was an error with your registration. Please try again.")
         return str(response)
+
 
 
 
