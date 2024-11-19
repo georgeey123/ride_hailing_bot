@@ -13,7 +13,7 @@ from twilio.rest import Client
 # Load environment variables
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')  # Secret key for session management
+app.secret_key = os.getenv('FLASK_SECRET_KEY')  # Secret key for session management
 
 # Twilio Client
 client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
@@ -35,6 +35,10 @@ def get_db_connection():
     except psycopg2.Error as e:
         print(f"Error connecting to database: {e}")
         return None
+
+def is_valid_phone_number(phone):
+    # Basic validation for phone numbers
+    return phone.startswith('+') and phone[1:].isdigit() and len(phone) >= 10
 
 # Helper functions for database interactions
 def get_user(phone_number):
@@ -258,6 +262,9 @@ def handle_registration(phone_number, incoming_msg):
 
     # Step: Ask for the emergency contact
     elif session['registration_step'] == 'ask_emergency_contact':
+        if not is_valid_phone_number(incoming_msg):
+            msg.body("Invalid phone number. Please provide a valid emergency contact number in the format +<country_code><number>.")
+            return str(response)
         session['emergency_contact'] = incoming_msg
         full_name = session.pop('full_name')
         role = session.pop('role')
@@ -271,6 +278,7 @@ def handle_registration(phone_number, incoming_msg):
         else:
             msg.body("Sorry, there was an error with your registration. Please try again.")
         return str(response)
+
 
 
 # Twilio webhook route
